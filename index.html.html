@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>終極完美版 - 學生座位表產生器 (進度同步 & 互換座位)</title>
+    <style>
+        body { font-family: '微軟正黑體', sans-serif; background: #f4f5f7; margin: 20px; color: #333; }
+        .container { display: flex; gap: 20px; max-width: 1450px; margin: auto; align-items: flex-start; }
+        .panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .sidebar { flex: 1; min-width: 360px; max-width: 380px; }
+        .main { flex: 3; overflow-x: auto; min-height: 800px; }
+        
+        h3 { margin-top: 0; color: #2c3e50; font-size: 16px; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        textarea, input[type="text"], input[type="number"], select { 
+            width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 10px; 
+            border: 1px solid #ccc; border-radius: 4px; font-family: inherit;
+        }
+        
+        button { 
+            color: white; border: none; padding: 12px 15px; cursor: pointer; 
+            border-radius: 4px; font-weight: bold; width: 100%; margin-bottom: 10px; 
+            transition: background 0.2s; font-size: 14px;
+        }
+        .btn-init { background: #607D8B; } .btn-init:hover { background: #455A64; }
+        .btn-auto { background: #FF9800; color: #fff; font-size: 15px; } .btn-auto:hover { background: #F57C00; }
+        .btn-history { background: #9C27B0; } .btn-history:hover { background: #7B1FA2; }
+        .btn-export { background: #2196F3; font-size: 16px; } .btn-export:hover { background: #1976D2; }
+        .btn-clear { background: #f44336; } .btn-clear:hover { background: #d32f2f; }
+        
+        /* 網格 UI 樣式 */
+        #gridWrapper { display: flex; flex-direction: column; }
+        #uiGrid { display: grid; gap: 8px; margin: 20px 0; justify-content: center; }
+        .cell { 
+            border: 2px dashed #bbb; height: 70px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            cursor: pointer; position: relative; border-radius: 6px; transition: all 0.2s;
+        }
+        .cell:hover { border-color: #2196F3; filter: brightness(0.95); }
+        .cell.glare { background: #424242 !important; border-color: #212121 !important; cursor: not-allowed; }
+        .cell.glare:hover { background: #424242 !important; }
+        .cell.swap-active { border-color: #E91E63 !important; background-color: #FCE4EC !important; box-shadow: 0 0 10px rgba(233, 30, 99, 0.5); }
+        .cell .stu-id { font-size: 13px; color: #555; position: absolute; top: 4px; right: 6px; font-weight: bold; }
+        .cell .stu-name { font-size: 18px; font-weight: bold; color: #000; }
+        .cell .stu-title { font-size: 11px; color: #d32f2f; position: absolute; top: 4px; left: 6px; font-weight: bold; }
+        .cell .zone-label { font-size: 11px; color: rgba(0,0,0,0.3); position: absolute; bottom: 4px; right: 6px; font-weight: bold; }
+        .cell .manual-pin { font-size: 10px; position: absolute; bottom: 4px; left: 6px; }
+        
+        .platform { text-align: center; background: #e0e0e0; padding: 12px; font-weight: bold; letter-spacing: 20px; border: 1px solid #aaa; border-radius: 4px; font-size: 18px; }
+        .pref-box { background: #fff9c4; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #fbc02d; }
+        .pref-box label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; color: #f57f17; }
+        .sync-box { background: #F3E5F5; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #AB47BC; }
+        .sync-box label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; color: #7B1FA2; }
+        .view-box { background: #e3f2fd; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #90caf9; }
+        .view-box label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; color: #1565c0; cursor: pointer; }
+        .note { font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 10px; display: block; }
+        .alert-text { color: #d32f2f; font-weight: bold; font-size: 13px; }
+        .save-status { font-size: 12px; color: #4CAF50; text-align: right; margin-bottom: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="panel sidebar">
+        <div class="save-status" id="saveStatus">✔️ 資料已自動暫存</div>
+        
+        <h3>1. 標題與網格</h3>
+        <textarea id="classTitle" rows="1" placeholder="標題 (如：112學年度 座位表)"></textarea>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="rowCount" value="6" min="1" placeholder="列數 (直)">
+            <input type="number" id="colCount" value="6" min="1" placeholder="排數 (橫)">
+        </div>
+        <button class="btn-init" onclick="initGrid()">🔄 產生 / 重置網格</button>
+
+        <h3 style="color:#d32f2f;">👨‍🏫 2. 老師強制設定區 (優先權最高)</h3>
+        <span class="note">格式：座號 前/中/後 (例如: 1 前)</span>
+        <textarea id="teacherPref" rows="2" placeholder="1 前&#10;5 後"></textarea>
+
+        <h3>🧑‍🎓 3. 學生名單與志願 (前/中/後)</h3>
+        <span class="note">格式：座號 姓名 志願1 志願2<br>範例：1 王小明 前 中</span>
+        <textarea id="studentList" rows="5" placeholder="1 王小明 前 中&#10;2 李小華 中 後&#10;3 張大山"></textarea>
+
+        <h3>4. 幹部名單 (職稱 座號)</h3>
+        <textarea id="officerList" rows="2" placeholder="班長 1"></textarea>
+
+        <div class="view-box">
+            <label>👀 5. 預覽視角切換 (左右會反轉)</label>
+            <label style="font-weight: normal;"><input type="radio" name="viewAngle" value="teacher" checked onchange="renderUIGrid()"> 👨‍🏫 老師視角 (講台在下方)</label>
+            <label style="font-weight: normal;"><input type="radio" name="viewAngle" value="student" onchange="renderUIGrid()"> 🧑‍🎓 學生視角 (講台在上方)</label>
+        </div>
+
+        <div class="pref-box">
+            <label>⭐ 6. 點擊網格互動模式</label>
+            <select id="clickMode">
+                <optgroup label="微調座位">
+                    <option value="swap">🔄 點擊兩格：互換學生位子</option>
+                    <option value="assign">👤 點擊格子：手動指定特定學生</option>
+                    <option value="remove">❌ 點擊格子：移除該格學生</option>
+                    <option value="glare">⬛ 點擊格子：設定 / 取消黑格子</option>
+                </optgroup>
+                <optgroup label="自訂區域 (畫筆)">
+                    <option value="zone_front">🟥 標記此格為：前區</option>
+                    <option value="zone_mid">🟨 標記此格為：中區</option>
+                    <option value="zone_back">🟩 標記此格為：後區</option>
+                </optgroup>
+            </select>
+            <select id="studentSelect" style="display: none; margin-top: 5px;"></select>
+        </div>
+
+        <div class="sync-box">
+            <label>📲 7. 跨裝置進度同步 (平板排，電腦印)</label>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="exportProgress()" style="background:#8E24AA; margin:0;">📤 產生進度代碼</button>
+                <button onclick="importProgress()" style="background:#00ACC1; margin:0;">📥 貼上進度代碼</button>
+            </div>
+            <p style="font-size: 11px; margin: 5px 0 0 0; color: #666;">在平板產生代碼後傳到電腦貼上，即可無縫接軌！</p>
+        </div>
+
+        <button class="btn-auto" onclick="autoFill()">🎲 自動排座 (不滿意可無限重骰)</button>
+        <button class="btn-history" onclick="saveHistory()">🔒 滿意了！確認並存入歷史 (下次避開)</button>
+        <span id="historyStatus" class="alert-text" style="display:block; text-align:center; margin-bottom:10px;"></span>
+
+        <button class="btn-clear" onclick="clearStudentsOnly()">🧹 清空網格上自動排的學生</button>
+        <button class="btn-export" onclick="exportExcel()">⬇️ 匯出終極完美版 Excel</button>
+    </div>
+
+    <div class="panel main">
+        <h2 style="text-align: center; margin-top: 0; color: #333;">座位預覽與編輯區</h2>
+        <div id="gridWrapper" style="display: none;">
+            <div id="uiGrid"></div>
+            <div class="platform" id="platformBox">講台</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let gridData = [];
+    let numRows = 0;
+    let numCols = 0;
+    let previousHistory = JSON.parse(localStorage.getItem('seatingHistory_V6')) || {};
+    let swapSource = null; // 用來紀錄互換座位的第一個點擊目標
+
+    // --- 💾 資料自動暫存 ---
+    function saveData() {
+        if(gridData.length === 0) return;
+        const data = {
+            title: document.getElementById('classTitle').value,
+            rows: document.getElementById('rowCount').value,
+            cols: document.getElementById('colCount').value,
+            teacherPref: document.getElementById('teacherPref').value,
+            students: document.getElementById('studentList').value,
+            officers: document.getElementById('officerList').value,
+            view: document.querySelector('input[name="viewAngle"]:checked').value,
+            grid: gridData
+        };
+        localStorage.setItem('seatingChartSave_V6', JSON.stringify(data));
+        
+        const statusEl = document.getElementById('saveStatus');
+        statusEl.style.color = "#4CAF50";
+        setTimeout(() => { statusEl.style.color = "transparent"; }, 1500);
+    }
+
+    function loadData() {
+        const saved = localStorage.getItem('seatingChartSave_V6');
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                document.getElementById('classTitle').value = data.title || '';
+                document.getElementById('rowCount').value = data.rows || 6;
+                document.getElementById('colCount').value = data.cols || 6;
+                document.getElementById('teacherPref').value = data.teacherPref || '';
+                document.getElementById('studentList').value = data.students || '';
+                document.getElementById('officerList').value = data.officers || '';
+                
+                if (data.view) document.querySelector(`input[name="viewAngle"][value="${data.view}"]`).checked = true;
+
+                if (data.grid && data.grid.length > 0) {
+                    gridData = data.grid;
+                    numRows = gridData.length;
+                    numCols = gridData[0].length;
+                    document.getElementById('gridWrapper').style.display = 'flex';
+                    renderUIGrid();
+                    updateStudentDropdown();
+                }
+            } catch(e) { console.error("讀取失敗", e); }
+        }
+    }
+
+    // --- 📲 跨裝置進度同步 (匯出/匯入) ---
+    function exportProgress() {
+        saveData(); // 確保抓到最新狀態
+        let raw = localStorage.getItem('seatingChartSave_V6');
+        if (!raw) return alert("目前沒有進度可以匯出！");
+        // 將 JSON 字串轉成 Base64 代碼
+        let encoded = btoa(encodeURIComponent(raw));
+        prompt("請全選並「複製」以下代碼，傳送到另一台裝置後貼上：", encoded);
+    }
+
+    function importProgress() {
+        let code = prompt("請「貼上」您從另一台裝置複製過來的進度代碼：");
+        if (!code) return;
+        try {
+            // 解析 Base64 回 JSON
+            let decoded = decodeURIComponent(atob(code));
+            JSON.parse(decoded); // 檢查格式是否正確
+            localStorage.setItem('seatingChartSave_V6', decoded);
+            loadData();
+            alert("✅ 成功載入跨裝置進度！");
+        } catch(e) {
+            alert("❌ 載入失敗！代碼可能不完整或格式錯誤，請重新複製一次。");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+        const inputs = document.querySelectorAll('textarea, input[type="number"], input[type="text"]');
+        inputs.forEach(el => el.addEventListener('input', saveData));
+
+        // 視角切換監聽器只在頁面載入時註冊一次，避免 renderUIGrid() 每次重繪都疊加新的監聽器
+        document.querySelectorAll('input[name="viewAngle"]').forEach(radio => {
+            radio.addEventListener('change', () => { swapSource = null; saveData(); });
+        });
+    });
+
+    function safeSplit(str) { return str.trim().split(/[\s\t]+/); }
+
+    function getTeacherPrefs() {
+        let raw = document.getElementById('teacherPref').value.split('\n').filter(x => x.trim());
+        let prefs = {};
+        raw.forEach(line => {
+            let parts = safeSplit(line);
+            if(parts.length >= 2) prefs[parts[0]] = parts[1]; 
+        });
+        return prefs;
+    }
+
+    function getParsedStudents() {
+        let raw = document.getElementById('studentList').value.split('\n').filter(x => x.trim());
+        return raw.map(line => {
+            let parts = safeSplit(line);
+            return { id: parts[0] || '', name: parts[1] || '', pref1: parts[2] || '', pref2: parts[3] || '' };
+        });
+    }
+
+    function getDefaultZone(r) {
+        let third = Math.max(1, Math.round(numRows / 3));
+        if (r >= numRows - third) return '前'; 
+        if (r >= numRows - 2 * third) return '中';
+        return '後';
+    }
+
+    function initGrid() {
+        numRows = parseInt(document.getElementById('rowCount').value);
+        numCols = parseInt(document.getElementById('colCount').value);
+        if (numRows < 1 || numCols < 1) return alert("請輸入正確的行列數！");
+
+        gridData = Array.from({ length: numRows }, (_, r) => 
+            Array.from({ length: numCols }, (_, c) => ({ 
+                type: 'empty', 
+                student: null,
+                zone: getDefaultZone(r) 
+            }))
+        );
+        swapSource = null; // 重置互換目標
+        document.getElementById('gridWrapper').style.display = 'flex';
+        renderUIGrid();
+        updateStudentDropdown();
+        saveData();
+    }
+
+    document.getElementById('clickMode').addEventListener('change', function() {
+        const stuSelect = document.getElementById('studentSelect');
+        stuSelect.style.display = this.value === 'assign' ? 'block' : 'none';
+        if(this.value === 'assign') updateStudentDropdown();
+        
+        // 如果切換模式，取消正在進行的互換動作
+        swapSource = null;
+        renderUIGrid();
+    });
+
+    function updateStudentDropdown() {
+        const select = document.getElementById('studentSelect');
+        const students = getParsedStudents();
+        select.innerHTML = '<option value="">-- 請選擇學生 --</option>';
+        
+        const placedIds = [];
+        if(gridData.length) {
+            for (let r = 0; r < numRows; r++) {
+                for (let c = 0; c < numCols; c++) {
+                    if (gridData[r][c].student) placedIds.push(gridData[r][c].student.id);
+                }
+            }
+        }
+        students.forEach(stu => {
+            if (!placedIds.includes(stu.id)) {
+                let opt = document.createElement('option');
+                opt.value = stu.id;
+                opt.textContent = `${stu.id} ${stu.name}`;
+                select.appendChild(opt);
+            }
+        });
+    }
+
+    function clearStudentsOnly() {
+        for (let r = 0; r < numRows; r++) {
+            for (let c = 0; c < numCols; c++) {
+                if (gridData[r][c].student && !gridData[r][c].student.isManual) {
+                    gridData[r][c].student = null;
+                }
+            }
+        }
+        swapSource = null;
+        renderUIGrid();
+        updateStudentDropdown();
+        saveData();
+    }
+
+    function renderUIGrid() {
+        const gridEl = document.getElementById('uiGrid');
+        const platformBox = document.getElementById('platformBox');
+        const gridWrapper = document.getElementById('gridWrapper');
+        if(numCols === 0) return;
+        
+        gridEl.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
+        gridEl.innerHTML = '';
+
+        const viewAngle = document.querySelector('input[name="viewAngle"]:checked').value;
+
+        if (viewAngle === 'teacher') {
+            gridWrapper.appendChild(gridEl);
+            gridWrapper.appendChild(platformBox);
+        } else {
+            gridWrapper.appendChild(platformBox);
+            gridWrapper.appendChild(gridEl);
+        }
+
+        const officerMap = {};
+        document.getElementById('officerList').value.split('\n').filter(x=>x.trim()).forEach(o => {
+            let parts = safeSplit(o);
+            if(parts.length >= 2) officerMap[parts[1]] = parts[0]; 
+        });
+
+        let r_start = viewAngle === 'teacher' ? 0 : numRows - 1;
+        let r_end = viewAngle === 'teacher' ? numRows : -1;
+        let step = viewAngle === 'teacher' ? 1 : -1;
+
+        let c_start = viewAngle === 'teacher' ? 0 : numCols - 1;
+        let c_end = viewAngle === 'teacher' ? numCols : -1;
+
+        for (let r = r_start; r !== r_end; r += step) {
+            for (let c = c_start; c !== c_end; c += step) {
+                let cellData = gridData[r][c];
+                let cellDiv = document.createElement('div');
+                cellDiv.className = 'cell';
+                
+                if (cellData.type !== 'glare') {
+                    if(cellData.zone === '前') cellDiv.style.backgroundColor = '#ffebee'; 
+                    if(cellData.zone === '中') cellDiv.style.backgroundColor = '#fff8e1'; 
+                    if(cellData.zone === '後') cellDiv.style.backgroundColor = '#e8f5e9'; 
+                    
+                    if(!cellData.student) {
+                        cellDiv.innerHTML = `<span class="zone-label">${cellData.zone}區</span>`;
+                    }
+                }
+                
+                if (cellData.type === 'glare') {
+                    cellDiv.classList.add('glare');
+                    cellDiv.innerHTML = '';
+                } else if (cellData.student) {
+                    let title = officerMap[cellData.student.id] || '';
+                    let pin = cellData.student.isManual ? '<span class="manual-pin">📌手動</span>' : '';
+                    cellDiv.innerHTML = `
+                        ${pin}
+                        <div class="stu-title">${title}</div>
+                        <div class="stu-id">${cellData.student.id}</div>
+                        <div class="stu-name">${cellData.student.name}</div>
+                        <span class="zone-label">${cellData.zone}</span>
+                    `;
+                    cellDiv.style.borderStyle = 'solid';
+                    cellDiv.style.borderColor = cellData.student.isManual ? '#FF9800' : '#4CAF50';
+                    cellDiv.style.borderWidth = '3px';
+                    cellDiv.style.backgroundColor = '#fff'; 
+                }
+
+                // 標示被選中準備互換的格子
+                if (swapSource && swapSource.r === r && swapSource.c === c) {
+                    cellDiv.classList.add('swap-active');
+                }
+
+                cellDiv.onclick = () => {
+                    const mode = document.getElementById('clickMode').value;
+                    
+                    if (mode === 'swap') {
+                        if (cellData.type === 'glare') return alert("黑格子無法互換喔！");
+                        
+                        if (!swapSource) {
+                            // 紀錄第一個點擊的格子
+                            swapSource = {r, c};
+                        } else {
+                            if (swapSource.r === r && swapSource.c === c) {
+                                // 點同一個格子等於取消
+                                swapSource = null;
+                            } else {
+                                // 互換兩個格子的學生
+                                let tempStudent = gridData[swapSource.r][swapSource.c].student;
+                                gridData[swapSource.r][swapSource.c].student = gridData[r][c].student;
+                                gridData[r][c].student = tempStudent;
+                                swapSource = null;
+                                saveData();
+                            }
+                        }
+                    } else if (mode === 'glare') {
+                        if (cellData.student) return alert("請先移除學生再設定為黑格子！");
+                        cellData.type = cellData.type === 'empty' ? 'glare' : 'empty';
+                    } else if (mode === 'remove') {
+                        if (cellData.student) cellData.student = null;
+                    } else if (mode === 'assign') {
+                        if (cellData.type === 'glare') return alert("這是黑格子！");
+                        if (cellData.student) return alert("這裡已經有學生了！");
+                        const stuId = document.getElementById('studentSelect').value;
+                        if (!stuId) return alert("請先從選單選擇學生！");
+                        let stu = getParsedStudents().find(s => s.id === stuId);
+                        stu.isManual = true; 
+                        cellData.student = stu;
+                    } else if (mode === 'zone_front') {
+                        cellData.zone = '前';
+                    } else if (mode === 'zone_mid') {
+                        cellData.zone = '中';
+                    } else if (mode === 'zone_back') {
+                        cellData.zone = '後';
+                    }
+                    renderUIGrid();
+                    updateStudentDropdown();
+                    if(mode !== 'swap') saveData(); 
+                };
+                gridEl.appendChild(cellDiv);
+            }
+        }
+    }
+
+    function autoFill() {
+        if (gridData.length === 0) return alert("請先產生網格！");
+        
+        clearStudentsOnly();
+
+        let allStudents = getParsedStudents();
+        let teacherPrefs = getTeacherPrefs();
+        
+        let placedIds = [];
+        for (let r = 0; r < numRows; r++) {
+            for (let c = 0; c < numCols; c++) {
+                if (gridData[r][c].student) placedIds.push(gridData[r][c].student.id);
+            }
+        }
+        
+        let unplacedStudents = allStudents.filter(s => !placedIds.includes(s.id));
+
+        // 老師強制設定「優先權最高」：先把老師強制指定的學生獨立出來，
+        // 讓他們最先搶座位，避免被其他學生的志願搶先佔掉指定區域的空位
+        let forcedStudents = unplacedStudents.filter(s => teacherPrefs[s.id]);
+        let normalStudents = unplacedStudents.filter(s => !teacherPrefs[s.id]);
+        forcedStudents.sort(() => Math.random() - 0.5);
+        normalStudents.sort(() => Math.random() - 0.5);
+        unplacedStudents = [...forcedStudents, ...normalStudents];
+
+        function tryPlaceInZone(stu, targetZone) {
+            let availableSeats = [];
+            for (let r = numRows - 1; r >= 0; r--) {
+                for (let c = numCols - 1; c >= 0; c--) {
+                    if (gridData[r][c].type !== 'glare' && !gridData[r][c].student && gridData[r][c].zone === targetZone) {
+                        availableSeats.push({r, c});
+                    }
+                }
+            }
+            availableSeats.sort(() => Math.random() - 0.5);
+            
+            for (let seat of availableSeats) {
+                if (previousHistory[stu.id] !== `${seat.r},${seat.c}`) {
+                    gridData[seat.r][seat.c].student = stu;
+                    return true;
+                }
+            }
+            if (availableSeats.length > 0) {
+                 gridData[availableSeats[0].r][availableSeats[0].c].student = stu;
+                 return true;
+            }
+            return false;
+        }
+
+        let remaining = [];
+
+        unplacedStudents.forEach(stu => {
+            let placed = false;
+            let forceZone = teacherPrefs[stu.id];
+
+            if (forceZone) placed = tryPlaceInZone(stu, forceZone);
+            else if (stu.pref1 && ['前','中','後'].includes(stu.pref1)) placed = tryPlaceInZone(stu, stu.pref1);
+            
+            if (!placed && stu.pref2 && ['前','中','後'].includes(stu.pref2)) placed = tryPlaceInZone(stu, stu.pref2);
+
+            if (!placed) remaining.push(stu);
+        });
+
+        remaining.forEach(stu => {
+            let emptySeats = [];
+            for (let r = numRows - 1; r >= 0; r--) {
+                for (let c = numCols - 1; c >= 0; c--) {
+                    if (gridData[r][c].type !== 'glare' && !gridData[r][c].student) emptySeats.push({r, c});
+                }
+            }
+            emptySeats.sort(() => Math.random() - 0.5); 
+
+            let placed = false;
+            for (let seat of emptySeats) {
+                if (previousHistory[stu.id] !== `${seat.r},${seat.c}`) {
+                    gridData[seat.r][seat.c].student = stu;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed && emptySeats.length > 0) gridData[emptySeats[0].r][emptySeats[0].c].student = stu;
+        });
+
+        swapSource = null;
+        renderUIGrid();
+        updateStudentDropdown();
+        saveData();
+        
+        let status = document.getElementById('historyStatus');
+        status.textContent = "🎲 已重新骰出座位！微調後滿意請務必點擊下方紫按鈕鎖定！";
+        status.style.color = "#FF9800";
+    }
+
+    function saveHistory() {
+        if(gridData.length === 0) return;
+        let newHistory = {};
+        for (let r = 0; r < numRows; r++) {
+            for (let c = 0; c < numCols; c++) {
+                if (gridData[r][c].student) {
+                    newHistory[gridData[r][c].student.id] = `${r},${c}`;
+                }
+            }
+        }
+        localStorage.setItem('seatingHistory_V6', JSON.stringify(newHistory));
+        previousHistory = newHistory; 
+        
+        let status = document.getElementById('historyStatus');
+        status.textContent = "✅ 已成功鎖定本次座位！下次將強制避開這些位子。";
+        status.style.color = "#4CAF50";
+    }
+
+    // 匯出 Excel
+    function exportExcel() {
+        if(gridData.length === 0) return alert("請先初始化並安排座位！");
+        const titleLines = document.getElementById('classTitle').value.split('\n');
+        const cols = gridData[0].length;
+        const rows = gridData.length;
+        const allStudents = getParsedStudents();
+
+        const officerRaw = document.getElementById('officerList').value.split('\n').filter(x=>x.trim());
+        const officers = officerRaw.map(o => {
+            let parts = safeSplit(o);
+            let stu = allStudents.find(s => s.id === parts[1]);
+            return { title: parts[0]||'', id: parts[1]||'', name: stu ? stu.name : '' };
+        });
+        const officerMap = {};
+        officers.forEach(o => { if(o.id) officerMap[o.id] = o.title; });
+
+        const half = Math.ceil(allStudents.length / 2);
+        const leftList = allStudents.slice(0, half);
+        const rightList = allStudents.slice(half);
+
+        function getColspans(total, count) {
+            let spans = [];
+            let remaining = total;
+            for(let i=0; i<count; i++) {
+                let span = Math.round(remaining / (count - i));
+                spans.push(span);
+                remaining -= span;
+            }
+            return spans;
+        }
+        const colSpans = getColspans(12, cols);
+
+        let centerRows = [];
+        for(let r = 0; r < rows; r++) {
+            let rowHtml = '';
+            for(let c = 0; c < cols; c++) { 
+                let cell = gridData[r][c];
+                let span = colSpans[c];
+                let spanAttr = span > 1 ? `colspan="${span}"` : '';
+
+                if(cell.type === 'glare') {
+                    rowHtml += `<td rowspan="2" ${spanAttr} style="background:#f5f5f5; border:1px solid #000;"></td>`;
+                } else if(cell.student) {
+                    let offTitle = officerMap[cell.student.id] ? officerMap[cell.student.id] : '';
+                    let innerTable = `<table style="width:100%; border-collapse:collapse; border:none; margin:0; padding:0; table-layout:fixed;">
+                        <tr>
+                            <td style="font-family:'微軟正黑體', sans-serif; border:none; text-align:left; padding:0; color:#d32f2f; font-size:11px; vertical-align:top; overflow:hidden;">${offTitle}</td>
+                            <td style="font-family:'標楷體', DFKai-SB, serif; font-weight:bold; border:none; text-align:right; padding:0; font-size:14px; vertical-align:top; width:25px;">${cell.student.id}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="font-family:'標楷體', DFKai-SB, serif; font-weight:bold; border:none; text-align:center; padding-top:4px; font-size:18px; vertical-align:middle;">${cell.student.name}</td>
+                        </tr>
+                    </table>`;
+                    rowHtml += `<td rowspan="2" ${spanAttr} style="border:1px solid #000; padding:4px; vertical-align:top;">${innerTable}</td>`;
+                } else {
+                    rowHtml += `<td rowspan="2" ${spanAttr} style="border:1px solid #000;"></td>`;
+                }
+            }
+            centerRows.push(rowHtml);
+            centerRows.push(''); 
+        }
+        
+        let colHtml = '';
+        for(let c = 0; c < cols; c++) {
+            let span = colSpans[c];
+            let spanAttr = span > 1 ? `colspan="${span}"` : '';
+            colHtml += `<td ${spanAttr} style="font-weight:bold; text-align:center; border:none; vertical-align:bottom;">第${c+1}排</td>`;
+        }
+        centerRows.push(colHtml);
+        centerRows.push(`<td colspan="12" style="background:#ddd; font-weight:bold; letter-spacing:10px; border:1px solid #000; text-align:center; height:30px;">講        台</td>`);
+
+        const maxRows = Math.max(leftList.length + 1, centerRows.length + 1, rightList.length + 1);
+
+        let html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>`;
+        html += `<table style="font-family: '標楷體', DFKai-SB, serif; font-size:14px; border-collapse:collapse; table-layout:fixed; width:900px;">`;
+        html += `<colgroup><col width="35"><col width="65"><col width="20">`;
+        for(let i=0; i<12; i++) html += `<col width="45">`;
+        html += `<col width="35"><col width="35"><col width="65"></colgroup>`;
+        
+        html += `<tr><td colspan="18" style="font-family:'標楷體', DFKai-SB, serif; font-size:20px; font-weight:bold; border:none; text-align:center;">${titleLines[0] || ''}</td></tr>`;
+        html += `<tr><td colspan="18" style="border:none; height:10px;"></td></tr>`;
+
+        for(let r=0; r<maxRows; r++) {
+            html += `<tr style="height:35px;">`;
+            
+            if(r === 0) { 
+                html += `<td style="font-weight:bold; border:1px solid #000; background:#eee; text-align:center;">座號</td><td style="font-weight:bold; border:1px solid #000; background:#eee; text-align:center;">姓名</td>`;
+            } else if (r - 1 < leftList.length) { 
+                html += `<td style="border:1px solid #000; text-align:center;">${leftList[r-1].id}</td><td style="border:1px solid #000; text-align:center;">${leftList[r-1].name}</td>`;
+            } else { html += `<td style="border:none;"></td><td style="border:none;"></td>`; }
+
+            html += `<td style="border:none;"></td>`; 
+            
+            let centerIdx = r - 1;
+            if (centerIdx >= 0 && centerIdx < centerRows.length) { 
+                if (centerRows[centerIdx] !== '') html += centerRows[centerIdx]; 
+            } 
+            else { html += `<td colspan="12" style="border:none;"></td>`; }
+            
+            html += `<td style="border:none;"></td>`; 
+
+            if(r === 0) { 
+                html += `<td style="font-weight:bold; border:1px solid #000; background:#eee; text-align:center;">座號</td><td style="font-weight:bold; border:1px solid #000; background:#eee; text-align:center;">姓名</td>`;
+            } else if (r - 1 < rightList.length) { 
+                html += `<td style="border:1px solid #000; text-align:center;">${rightList[r-1].id}</td><td style="border:1px solid #000; text-align:center;">${rightList[r-1].name}</td>`;
+            } else { html += `<td style="border:none;"></td><td style="border:none;"></td>`; }
+            
+            html += `</tr>`;
+        }
+        
+        if(officers.length > 0) {
+            html += `<tr><td colspan="18" style="height:20px; border:none;"></td></tr>`;
+            html += `<tr style="text-align:center; font-weight:bold; background:#f5f5f5; height:30px;">`;
+            for(let b=0; b<3; b++) { html += `<td colspan="3" style="border:1px solid #000;">幹部職稱</td><td style="border:1px solid #000;">座號</td><td colspan="2" style="border:1px solid #000;">姓名</td>`; }
+            html += `</tr>`;
+
+            let numRows = Math.ceil(officers.length / 3);
+            for(let r=0; r<numRows; r++) {
+                html += `<tr style="text-align:center; height:30px;">`;
+                for(let c=0; c<3; c++) {
+                    let o = (r * 3 + c) < officers.length ? officers[r * 3 + c] : {title: '', id: '', name: ''};
+                    html += `<td colspan="3" style="border:1px solid #000;">${o.title}</td><td style="border:1px solid #000;">${o.id}</td><td colspan="2" style="border:1px solid #000;">${o.name}</td>`;  
+                }
+                html += `</tr>`;
+            }
+        }
+        html += `</table></body></html>`;
+
+        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = '學生座位表_跨裝置終極版.xls';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+</script>
+
+</body>
+</html>

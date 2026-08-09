@@ -1,0 +1,8 @@
+# 避免把含有真實學生資料的匯出檔案誤傳上 GitHub
+*.xls
+*.xlsx
+*.csv
+students*.txt
+*名單*
+*座位表*.xls
+*座位表*.xlsx
