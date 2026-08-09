@@ -222,6 +222,16 @@
         });
     });
 
+    // 標準 Fisher–Yates 洗牌：取代 array.sort(() => Math.random() - 0.5)，
+    // 後者是知名的偏誤洗牌法（某些排列出現機率會比其他排列高），這個才是真正均勻隨機
+    function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
     function safeSplit(str) { return str.trim().split(/[\s\t]+/); }
 
     function getTeacherPrefs() {
@@ -252,7 +262,7 @@
     function initGrid() {
         numRows = parseInt(document.getElementById('rowCount').value);
         numCols = parseInt(document.getElementById('colCount').value);
-        if (numRows < 1 || numCols < 1) return alert("請輸入正確的行列數！");
+        if (isNaN(numRows) || isNaN(numCols) || numRows < 1 || numCols < 1) return alert("請輸入正確的行列數！");
 
         gridData = Array.from({ length: numRows }, (_, r) => 
             Array.from({ length: numCols }, (_, c) => ({ 
@@ -459,8 +469,8 @@
         // 讓他們最先搶座位，避免被其他學生的志願搶先佔掉指定區域的空位
         let forcedStudents = unplacedStudents.filter(s => teacherPrefs[s.id]);
         let normalStudents = unplacedStudents.filter(s => !teacherPrefs[s.id]);
-        forcedStudents.sort(() => Math.random() - 0.5);
-        normalStudents.sort(() => Math.random() - 0.5);
+        shuffle(forcedStudents);
+        shuffle(normalStudents);
         unplacedStudents = [...forcedStudents, ...normalStudents];
 
         function tryPlaceInZone(stu, targetZone) {
@@ -472,7 +482,7 @@
                     }
                 }
             }
-            availableSeats.sort(() => Math.random() - 0.5);
+            shuffle(availableSeats);
             
             for (let seat of availableSeats) {
                 if (previousHistory[stu.id] !== `${seat.r},${seat.c}`) {
@@ -508,7 +518,7 @@
                     if (gridData[r][c].type !== 'glare' && !gridData[r][c].student) emptySeats.push({r, c});
                 }
             }
-            emptySeats.sort(() => Math.random() - 0.5); 
+            shuffle(emptySeats);
 
             let placed = false;
             for (let seat of emptySeats) {
