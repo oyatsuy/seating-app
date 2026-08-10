@@ -27,7 +27,9 @@
         .btn-history { background: #9C27B0; } .btn-history:hover { background: #7B1FA2; }
         .btn-export { background: #2196F3; font-size: 16px; } .btn-export:hover { background: #1976D2; }
         .btn-clear { background: #f44336; } .btn-clear:hover { background: #d32f2f; }
-        
+        .btn-print { background: #00897B; font-size: 15px; } .btn-print:hover { background: #00695C; }
+        .btn-csv { background: #009688; } .btn-csv:hover { background: #00796B; }
+
         /* 網格 UI 樣式 */
         #gridWrapper { display: flex; flex-direction: column; }
         #uiGrid { display: grid; gap: 8px; margin: 20px 0; justify-content: center; }
@@ -56,6 +58,17 @@
         .note { font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 10px; display: block; }
         .alert-text { color: #d32f2f; font-weight: bold; font-size: 13px; }
         .save-status { font-size: 12px; color: #4CAF50; text-align: right; margin-bottom: 10px; font-weight: bold; }
+        .conflict-box { background: #ffebee; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #ef5350; }
+        .conflict-box label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; color: #c62828; }
+        .class-box { background: #e0f2f1; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #26A69A; }
+        .class-box label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; color: #00695C; }
+
+        /* iPad 等窄螢幕：側欄跟主畫面改成上下堆疊，避免被壓得太窄 */
+        @media (max-width: 900px) {
+            .container { flex-direction: column; }
+            .sidebar { max-width: 100%; min-width: 0; width: 100%; box-sizing: border-box; }
+            .main { width: 100%; box-sizing: border-box; }
+        }
     </style>
 </head>
 <body>
@@ -72,25 +85,35 @@
         </div>
         <button class="btn-init" onclick="initGrid()">🔄 產生 / 重置網格</button>
 
+        <button class="btn-auto" onclick="autoFill()">🎲 自動排座 (不滿意可無限重骰)</button>
+
         <h3 style="color:#d32f2f;">👨‍🏫 2. 老師強制設定區 (優先權最高)</h3>
         <span class="note">格式：座號 前/中/後 (例如: 1 前)</span>
         <textarea id="teacherPref" rows="2" placeholder="1 前&#10;5 後"></textarea>
 
         <h3>🧑‍🎓 3. 學生名單與志願 (前/中/後)</h3>
         <span class="note">格式：座號 姓名 志願1 志願2<br>範例：1 王小明 前 中</span>
+        <input type="file" id="csvImportInput" accept=".csv,.txt" style="display:none;" onchange="handleCsvImport(event)">
+        <button type="button" class="btn-csv" onclick="document.getElementById('csvImportInput').click()">📁 從 CSV/文字檔匯入名單</button>
         <textarea id="studentList" rows="5" placeholder="1 王小明 前 中&#10;2 李小華 中 後&#10;3 張大山"></textarea>
 
-        <h3>4. 幹部名單 (職稱 座號)</h3>
+        <div class="conflict-box">
+            <label>🚫 4. 座位衝突設定 (盡量不排在隔壁)</label>
+            <span class="note">格式：座號1 座號2 (一行一組，自動排座時會盡量避開讓這兩人相鄰)</span>
+            <textarea id="conflictPairs" rows="2" placeholder="1 5&#10;3 8"></textarea>
+        </div>
+
+        <h3>5. 幹部名單 (職稱 座號)</h3>
         <textarea id="officerList" rows="2" placeholder="班長 1"></textarea>
 
         <div class="view-box">
-            <label>👀 5. 預覽視角切換 (左右會反轉)</label>
+            <label>👀 6. 預覽視角切換 (左右會反轉)</label>
             <label style="font-weight: normal;"><input type="radio" name="viewAngle" value="teacher" checked onchange="renderUIGrid()"> 👨‍🏫 老師視角 (講台在下方)</label>
             <label style="font-weight: normal;"><input type="radio" name="viewAngle" value="student" onchange="renderUIGrid()"> 🧑‍🎓 學生視角 (講台在上方)</label>
         </div>
 
         <div class="pref-box">
-            <label>⭐ 6. 點擊網格互動模式</label>
+            <label>⭐ 7. 點擊網格互動模式</label>
             <select id="clickMode">
                 <optgroup label="微調座位">
                     <option value="swap">🔄 點擊兩格：互換學生位子</option>
@@ -108,20 +131,30 @@
         </div>
 
         <div class="sync-box">
-            <label>📲 7. 跨裝置進度同步 (平板排，電腦印)</label>
+            <label>📲 8. 跨裝置進度同步 (平板排，電腦印)</label>
             <div style="display: flex; gap: 10px;">
                 <button onclick="exportProgress()" style="background:#8E24AA; margin:0;">📤 產生進度代碼</button>
                 <button onclick="importProgress()" style="background:#00ACC1; margin:0;">📥 貼上進度代碼</button>
             </div>
-            <p style="font-size: 11px; margin: 5px 0 0 0; color: #666;">在平板產生代碼後傳到電腦貼上，即可無縫接軌！</p>
+            <p style="font-size: 11px; margin: 5px 0 0 0; color: #666;">在平板產生代碼後傳到電腦貼上，即可無縫接軌！代碼會自動複製到剪貼簿。</p>
         </div>
 
-        <button class="btn-auto" onclick="autoFill()">🎲 自動排座 (不滿意可無限重骰)</button>
+        <div class="class-box">
+            <label>📚 9. 班級資料管理 (多班級存檔)</label>
+            <select id="classProfileSelect"><option value="">-- 選擇已存班級 --</option></select>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="saveClassProfile()" style="background:#00897B; margin:0;">💾 另存為班級</button>
+                <button onclick="loadClassProfile()" style="background:#26A69A; margin:0;">📂 讀取</button>
+                <button onclick="deleteClassProfile()" style="background:#EF5350; margin:0;">🗑️ 刪除</button>
+            </div>
+        </div>
+
         <button class="btn-history" onclick="saveHistory()">🔒 滿意了！確認並存入歷史 (下次避開)</button>
         <span id="historyStatus" class="alert-text" style="display:block; text-align:center; margin-bottom:10px;"></span>
 
-        <button class="btn-clear" onclick="clearStudentsOnly()">🧹 清空網格上自動排的學生</button>
+        <button class="btn-clear" onclick="clearStudentsWithConfirm()">🧹 清空網格上自動排的學生</button>
         <button class="btn-export" onclick="exportExcel()">⬇️ 匯出 Excel</button>
+        <button class="btn-print" onclick="printSeatChart()">🖨️ 預覽列印 / 存PDF</button>
     </div>
 
     <div class="panel main">
@@ -141,47 +174,57 @@
     let swapSource = null; // 用來紀錄互換座位的第一個點擊目標
 
     // --- 💾 資料自動暫存 ---
-    function saveData() {
-        if(gridData.length === 0) return;
-        const data = {
+    function currentStateSnapshot() {
+        return {
             title: document.getElementById('classTitle').value,
             rows: document.getElementById('rowCount').value,
             cols: document.getElementById('colCount').value,
             teacherPref: document.getElementById('teacherPref').value,
             students: document.getElementById('studentList').value,
+            conflictPairs: document.getElementById('conflictPairs').value,
             officers: document.getElementById('officerList').value,
             view: document.querySelector('input[name="viewAngle"]:checked').value,
             grid: gridData
         };
-        localStorage.setItem('seatingChartSave_V6', JSON.stringify(data));
-        
+    }
+
+    function saveData() {
+        if(gridData.length === 0) return;
+        localStorage.setItem('seatingChartSave_V6', JSON.stringify(currentStateSnapshot()));
+
         const statusEl = document.getElementById('saveStatus');
         statusEl.style.color = "#4CAF50";
         setTimeout(() => { statusEl.style.color = "transparent"; }, 1500);
+    }
+
+    // 把一份存檔資料（自動暫存 / 班級存檔 / 跨裝置代碼，格式都一樣）套用到畫面上
+    function applyLoadedData(data) {
+        document.getElementById('classTitle').value = data.title || '';
+        document.getElementById('rowCount').value = data.rows || 6;
+        document.getElementById('colCount').value = data.cols || 6;
+        document.getElementById('teacherPref').value = data.teacherPref || '';
+        document.getElementById('studentList').value = data.students || '';
+        document.getElementById('conflictPairs').value = data.conflictPairs || '';
+        document.getElementById('officerList').value = data.officers || '';
+
+        if (data.view) document.querySelector(`input[name="viewAngle"][value="${data.view}"]`).checked = true;
+
+        if (data.grid && data.grid.length > 0) {
+            gridData = data.grid;
+            numRows = gridData.length;
+            numCols = gridData[0].length;
+            document.getElementById('gridWrapper').style.display = 'flex';
+            renderUIGrid();
+            updateStudentDropdown();
+        }
+        swapSource = null;
     }
 
     function loadData() {
         const saved = localStorage.getItem('seatingChartSave_V6');
         if (saved) {
             try {
-                const data = JSON.parse(saved);
-                document.getElementById('classTitle').value = data.title || '';
-                document.getElementById('rowCount').value = data.rows || 6;
-                document.getElementById('colCount').value = data.cols || 6;
-                document.getElementById('teacherPref').value = data.teacherPref || '';
-                document.getElementById('studentList').value = data.students || '';
-                document.getElementById('officerList').value = data.officers || '';
-                
-                if (data.view) document.querySelector(`input[name="viewAngle"][value="${data.view}"]`).checked = true;
-
-                if (data.grid && data.grid.length > 0) {
-                    gridData = data.grid;
-                    numRows = gridData.length;
-                    numCols = gridData[0].length;
-                    document.getElementById('gridWrapper').style.display = 'flex';
-                    renderUIGrid();
-                    updateStudentDropdown();
-                }
+                applyLoadedData(JSON.parse(saved));
             } catch(e) { console.error("讀取失敗", e); }
         }
     }
@@ -193,7 +236,15 @@
         if (!raw) return alert("目前沒有進度可以匯出！");
         // 將 JSON 字串轉成 Base64 代碼
         let encoded = btoa(encodeURIComponent(raw));
-        prompt("請全選並「複製」以下代碼，傳送到另一台裝置後貼上：", encoded);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(encoded).then(() => {
+                alert("✅ 進度代碼已經自動複製到剪貼簿了！\n直接到另一台裝置貼上即可，不用再手動複製。");
+            }).catch(() => {
+                prompt("自動複製失敗，請手動全選並「複製」以下代碼，傳送到另一台裝置後貼上：", encoded);
+            });
+        } else {
+            prompt("請全選並「複製」以下代碼，傳送到另一台裝置後貼上：", encoded);
+        }
     }
 
     function importProgress() {
@@ -202,17 +253,94 @@
         try {
             // 解析 Base64 回 JSON
             let decoded = decodeURIComponent(atob(code));
-            JSON.parse(decoded); // 檢查格式是否正確
+            const data = JSON.parse(decoded); // 檢查格式是否正確
             localStorage.setItem('seatingChartSave_V6', decoded);
-            loadData();
+            applyLoadedData(data);
+            saveData();
             alert("✅ 成功載入跨裝置進度！");
         } catch(e) {
             alert("❌ 載入失敗！代碼可能不完整或格式錯誤，請重新複製一次。");
         }
     }
 
+    // --- 📚 多班級存檔管理 ---
+    const CLASS_PROFILES_KEY = 'seatingClassProfiles_V1';
+
+    function getClassProfiles() {
+        try { return JSON.parse(localStorage.getItem(CLASS_PROFILES_KEY)) || {}; }
+        catch(e) { return {}; }
+    }
+
+    function refreshClassProfileDropdown() {
+        const select = document.getElementById('classProfileSelect');
+        const profiles = getClassProfiles();
+        const names = Object.keys(profiles);
+        const current = select.value;
+        select.innerHTML = '<option value="">-- 選擇已存班級 --</option>' +
+            names.map(n => `<option value="${n}">${n}</option>`).join('');
+        if (names.includes(current)) select.value = current;
+    }
+
+    function saveClassProfile() {
+        if (gridData.length === 0) return alert("請先產生網格並排好座位再存檔！");
+        const name = prompt("這個班級要存成什麼名稱？（例如：112上-三年一班）");
+        if (!name || !name.trim()) return;
+        const profiles = getClassProfiles();
+        profiles[name.trim()] = currentStateSnapshot();
+        localStorage.setItem(CLASS_PROFILES_KEY, JSON.stringify(profiles));
+        refreshClassProfileDropdown();
+        document.getElementById('classProfileSelect').value = name.trim();
+        alert(`✅ 已存為班級「${name.trim()}」！`);
+    }
+
+    function loadClassProfile() {
+        const name = document.getElementById('classProfileSelect').value;
+        if (!name) return alert("請先選擇要讀取的班級！");
+        const profiles = getClassProfiles();
+        const data = profiles[name];
+        if (!data) return alert("找不到這個班級的資料！");
+        if (gridData.length > 0 && !confirm(`讀取班級「${name}」會覆蓋目前畫面上的內容（目前內容已自動暫存，之後仍可以切回來，不會遺失），確定要讀取嗎？`)) return;
+        applyLoadedData(data);
+        saveData();
+        alert(`✅ 已讀取班級「${name}」！`);
+    }
+
+    function deleteClassProfile() {
+        const name = document.getElementById('classProfileSelect').value;
+        if (!name) return alert("請先選擇要刪除的班級！");
+        if (!confirm(`確定要刪除班級「${name}」的存檔嗎？此動作無法復原！`)) return;
+        const profiles = getClassProfiles();
+        delete profiles[name];
+        localStorage.setItem(CLASS_PROFILES_KEY, JSON.stringify(profiles));
+        refreshClassProfileDropdown();
+    }
+
+    // --- 📁 CSV / 文字檔匯入學生名單 ---
+    function handleCsvImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            let text = String(e.target.result);
+            // 把逗號或 Tab 分隔的格式統一轉成空白分隔（座號 姓名 志願1 志願2）
+            let converted = text.split('\n')
+                .map(line => line.trim().split(/[,\t]+/).filter(x => x !== '').join(' '))
+                .filter(l => l.trim())
+                .join('\n');
+            if (!converted) { alert("❌ 這個檔案裡沒有讀到任何資料，請確認檔案內容！"); return; }
+            document.getElementById('studentList').value = converted;
+            saveData();
+            const count = converted.split('\n').filter(x => x.trim()).length;
+            alert(`✅ 已匯入 ${count} 筆學生資料！請檢查格式是否正確（每行：座號 姓名 志願1 志願2）。`);
+        };
+        reader.onerror = () => alert("❌ 讀取檔案失敗，請確認檔案編碼(建議UTF-8)！");
+        reader.readAsText(file, 'UTF-8');
+        event.target.value = ''; // 清空，允許重複選同一個檔案再匯入一次
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         loadData();
+        refreshClassProfileDropdown();
         const inputs = document.querySelectorAll('textarea, input[type="number"], input[type="text"]');
         inputs.forEach(el => el.addEventListener('input', saveData));
 
@@ -250,6 +378,48 @@
             let parts = safeSplit(line);
             return { id: parts[0] || '', name: parts[1] || '', pref1: parts[2] || '', pref2: parts[3] || '' };
         });
+    }
+
+    // 檢查學生名單格式：缺座號、缺姓名、座號重複
+    function validateStudentList(students) {
+        let issues = [];
+        let seenIds = {};
+        students.forEach(s => {
+            if (!s.id) { issues.push(`有一筆資料缺少座號（姓名：${s.name || '空白'}）`); return; }
+            if (!s.name) issues.push(`座號 ${s.id} 沒有填姓名`);
+            if (seenIds[s.id]) issues.push(`座號 ${s.id} 重複出現了`);
+            seenIds[s.id] = true;
+        });
+        return issues;
+    }
+
+    // --- 🚫 座位衝突設定 (不排在隔壁) ---
+    function getConflictPairs() {
+        let raw = document.getElementById('conflictPairs').value.split('\n').filter(x => x.trim());
+        let pairs = [];
+        raw.forEach(line => {
+            let parts = safeSplit(line);
+            if (parts.length >= 2) pairs.push([parts[0], parts[1]]);
+        });
+        return pairs;
+    }
+
+    // 檢查 (r,c) 這個座位的上下左右鄰座，是否坐著跟 stuId 互相衝突的同學
+    function hasConflictAtSeat(stuId, r, c, conflictPairs) {
+        if (conflictPairs.length === 0) return false;
+        let conflictIds = [];
+        conflictPairs.forEach(([a, b]) => {
+            if (a === stuId) conflictIds.push(b);
+            if (b === stuId) conflictIds.push(a);
+        });
+        if (conflictIds.length === 0) return false;
+        const neighbors = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+        for (const [nr, nc] of neighbors) {
+            if (nr < 0 || nr >= numRows || nc < 0 || nc >= numCols) continue;
+            const neighborStu = gridData[nr][nc].student;
+            if (neighborStu && conflictIds.includes(neighborStu.id)) return true;
+        }
+        return false;
     }
 
     function getDefaultZone(r) {
@@ -311,6 +481,8 @@
         });
     }
 
+    // 內部清空邏輯：autoFill() 每次重骰都會呼叫這個函式，故意不加確認框，
+    // 不然「無限重骰」會被彈窗煩死；真正的使用者手動點擊清空，走下面 clearStudentsWithConfirm()
     function clearStudentsOnly() {
         for (let r = 0; r < numRows; r++) {
             for (let c = 0; c < numCols; c++) {
@@ -323,6 +495,15 @@
         renderUIGrid();
         updateStudentDropdown();
         saveData();
+    }
+
+    // 按鈕點擊用：清空前先確認，避免手滑清掉排好的座位
+    function clearStudentsWithConfirm() {
+        if (gridData.length === 0) return;
+        const hasAutoStudent = gridData.some(row => row.some(c => c.student && !c.student.isManual));
+        if (!hasAutoStudent) { clearStudentsOnly(); return; } // 反正沒東西可清，不用問
+        if (!confirm("確定要清空網格上「自動排」的學生嗎？📌手動指定的學生不會被清掉，但這個動作無法復原。")) return;
+        clearStudentsOnly();
     }
 
     function renderUIGrid() {
@@ -450,19 +631,26 @@
 
     function autoFill() {
         if (gridData.length === 0) return alert("請先產生網格！");
-        
-        clearStudentsOnly();
 
         let allStudents = getParsedStudents();
+        let validationIssues = validateStudentList(allStudents);
+        if (validationIssues.length > 0) {
+            alert("⚠️ 學生名單格式有問題，請先修正再排座：\n\n" + validationIssues.join('\n'));
+            return;
+        }
+
+        clearStudentsOnly();
+
         let teacherPrefs = getTeacherPrefs();
-        
+        let conflictPairs = getConflictPairs();
+
         let placedIds = [];
         for (let r = 0; r < numRows; r++) {
             for (let c = 0; c < numCols; c++) {
                 if (gridData[r][c].student) placedIds.push(gridData[r][c].student.id);
             }
         }
-        
+
         let unplacedStudents = allStudents.filter(s => !placedIds.includes(s.id));
 
         // 老師強制設定「優先權最高」：先把老師強制指定的學生獨立出來，
@@ -483,16 +671,24 @@
                 }
             }
             shuffle(availableSeats);
-            
+
+            // 第一輪：避開歷史座位 + 避開衝突鄰座（最理想的情況）
             for (let seat of availableSeats) {
-                if (previousHistory[stu.id] !== `${seat.r},${seat.c}`) {
+                if (previousHistory[stu.id] !== `${seat.r},${seat.c}` && !hasConflictAtSeat(stu.id, seat.r, seat.c, conflictPairs)) {
                     gridData[seat.r][seat.c].student = stu;
                     return true;
                 }
             }
-            // 這一區已經沒有「非歷史座位」可選了：回傳 false，讓外層改試志願2，
+            // 第二輪：這一區沒有同時滿足兩個條件的位子了，優先保證「不衝突」（比不重複歷史座位重要）
+            for (let seat of availableSeats) {
+                if (!hasConflictAtSeat(stu.id, seat.r, seat.c, conflictPairs)) {
+                    gridData[seat.r][seat.c].student = stu;
+                    return true;
+                }
+            }
+            // 這一區真的沒有「不衝突」的位子了：回傳 false，讓外層改試志願2，
             // 或交給全教室的 remaining fallback 去找別區的空位，
-            // 而不是在這裡就強制塞進歷史座位（避免明明別區還有空位卻放棄嘗試）
+            // 而不是在這裡就強制塞進去（避免明明別區還有空位卻放棄嘗試）
             return false;
         }
 
@@ -504,11 +700,13 @@
 
             if (forceZone) placed = tryPlaceInZone(stu, forceZone);
             else if (stu.pref1 && ['前','中','後'].includes(stu.pref1)) placed = tryPlaceInZone(stu, stu.pref1);
-            
+
             if (!placed && stu.pref2 && ['前','中','後'].includes(stu.pref2)) placed = tryPlaceInZone(stu, stu.pref2);
 
             if (!placed) remaining.push(stu);
         });
+
+        let unseated = [];
 
         remaining.forEach(stu => {
             let emptySeats = [];
@@ -520,24 +718,48 @@
             shuffle(emptySeats);
 
             let placed = false;
+            // 第一輪：避開歷史 + 避開衝突
             for (let seat of emptySeats) {
-                if (previousHistory[stu.id] !== `${seat.r},${seat.c}`) {
+                if (previousHistory[stu.id] !== `${seat.r},${seat.c}` && !hasConflictAtSeat(stu.id, seat.r, seat.c, conflictPairs)) {
                     gridData[seat.r][seat.c].student = stu;
                     placed = true;
                     break;
                 }
             }
-            if (!placed && emptySeats.length > 0) gridData[emptySeats[0].r][emptySeats[0].c].student = stu;
+            // 第二輪：至少避開衝突鄰座
+            if (!placed) {
+                for (let seat of emptySeats) {
+                    if (!hasConflictAtSeat(stu.id, seat.r, seat.c, conflictPairs)) {
+                        gridData[seat.r][seat.c].student = stu;
+                        placed = true;
+                        break;
+                    }
+                }
+            }
+            // 最後保底：真的沒辦法兩全了，至少要讓這位同學有位子坐，不能漏排
+            if (!placed && emptySeats.length > 0) {
+                gridData[emptySeats[0].r][emptySeats[0].c].student = stu;
+                placed = true;
+            }
+            if (!placed) unseated.push(stu);
         });
 
         swapSource = null;
         renderUIGrid();
         updateStudentDropdown();
         saveData();
-        
+
         let status = document.getElementById('historyStatus');
-        status.textContent = "🎲 已重新骰出座位！微調後滿意請務必點擊下方紫按鈕鎖定！";
-        status.style.color = "#FF9800";
+        if (unseated.length > 0) {
+            status.textContent = `⚠️ 座位不足！有 ${unseated.length} 位同學沒排到位子！`;
+            status.style.color = "#d32f2f";
+            alert(`⚠️ 座位不足，以下 ${unseated.length} 位同學沒有被安排到座位：\n\n` +
+                unseated.map(s => `${s.id} ${s.name}`).join('\n') +
+                `\n\n請增加座位數量、移除黑格子，或減少班級人數後再重新排座。`);
+        } else {
+            status.textContent = "🎲 已重新骰出座位！微調後滿意請務必點擊下方紫按鈕鎖定！";
+            status.style.color = "#FF9800";
+        }
     }
 
     function saveHistory() {
@@ -558,9 +780,9 @@
         status.style.color = "#4CAF50";
     }
 
-    // 匯出 Excel
-    function exportExcel() {
-        if(gridData.length === 0) return alert("請先初始化並安排座位！");
+    // 產生座位表的 HTML 內容，Excel 匯出跟預覽列印共用同一份版面邏輯
+    function buildSeatingHtml() {
+        if(gridData.length === 0) { alert("請先初始化並安排座位！"); return null; }
         const titleLines = document.getElementById('classTitle').value.split('\n');
         const cols = gridData[0].length;
         const rows = gridData.length;
@@ -686,6 +908,13 @@
             }
         }
         html += `</table></body></html>`;
+        return html;
+    }
+
+    // 匯出 Excel
+    function exportExcel() {
+        const html = buildSeatingHtml();
+        if (html === null) return;
 
         let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
         let url = URL.createObjectURL(blob);
@@ -695,6 +924,28 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+
+    // 預覽列印 / 存 PDF：開新分頁把同一份座位表內容丟進去，交給瀏覽器原生列印功能，
+    // iPad Safari 也能直接「儲存為 PDF」，不需要另外裝 Excel App
+    function printSeatChart() {
+        const html = buildSeatingHtml();
+        if (html === null) return;
+        const printWin = window.open('', '_blank');
+        if (!printWin) { alert("瀏覽器阻擋了新視窗，請先允許這個網站的「彈出視窗」權限後再試一次！"); return; }
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        let printed = false;
+        const doPrint = () => {
+            if (printed) return;
+            printed = true;
+            printWin.focus();
+            printWin.print();
+        };
+        printWin.onload = doPrint;
+        // 保險：部分瀏覽器（尤其 iPad Safari）onload 不一定可靠觸發，補一個延遲呼叫
+        setTimeout(doPrint, 500);
     }
 </script>
 
