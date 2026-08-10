@@ -121,7 +121,7 @@
         <span id="historyStatus" class="alert-text" style="display:block; text-align:center; margin-bottom:10px;"></span>
 
         <button class="btn-clear" onclick="clearStudentsOnly()">🧹 清空網格上自動排的學生</button>
-        <button class="btn-export" onclick="exportExcel()">⬇️ 匯出終極完美版 Excel</button>
+        <button class="btn-export" onclick="exportExcel()">⬇️ 匯出 Excel</button>
     </div>
 
     <div class="panel main">
@@ -638,7 +638,7 @@
         for(let i=0; i<12; i++) html += `<col width="45">`;
         html += `<col width="35"><col width="35"><col width="65"></colgroup>`;
         
-        html += `<tr><td colspan="18" style="font-family:'標楷體', DFKai-SB, serif; font-size:20px; font-weight:bold; border:none; text-align:center;">${titleLines[0] || ''}</td></tr>`;
+        html += `<tr><td colspan="18" style="font-family:'標楷體', DFKai-SB, serif; font-size:28pt; font-weight:bold; border:none; text-align:center;">${titleLines[0] || ''}</td></tr>`;
         html += `<tr><td colspan="18" style="border:none; height:10px;"></td></tr>`;
 
         for(let r=0; r<maxRows; r++) {
@@ -672,7 +672,7 @@
         if(officers.length > 0) {
             html += `<tr><td colspan="18" style="height:20px; border:none;"></td></tr>`;
             html += `<tr style="text-align:center; font-weight:bold; background:#f5f5f5; height:30px;">`;
-            for(let b=0; b<3; b++) { html += `<td colspan="3" style="border:1px solid #000;">幹部職稱</td><td style="border:1px solid #000;">座號</td><td colspan="2" style="border:1px solid #000;">姓名</td>`; }
+            for(let b=0; b<3; b++) { html += `<td colspan="2" style="border:1px solid #000;">幹部職稱</td><td style="border:1px solid #000;">座號</td><td colspan="2" style="border:1px solid #000;">姓名</td>`; }
             html += `</tr>`;
 
             let numRows = Math.ceil(officers.length / 3);
@@ -680,7 +680,7 @@
                 html += `<tr style="text-align:center; height:30px;">`;
                 for(let c=0; c<3; c++) {
                     let o = (r * 3 + c) < officers.length ? officers[r * 3 + c] : {title: '', id: '', name: ''};
-                    html += `<td colspan="3" style="border:1px solid #000;">${o.title}</td><td style="border:1px solid #000;">${o.id}</td><td colspan="2" style="border:1px solid #000;">${o.name}</td>`;  
+                    html += `<td colspan="2" style="border:1px solid #000;">${o.title}</td><td style="border:1px solid #000;">${o.id}</td><td colspan="2" style="border:1px solid #000;">${o.name}</td>`;
                 }
                 html += `</tr>`;
             }
