@@ -490,10 +490,9 @@
                     return true;
                 }
             }
-            if (availableSeats.length > 0) {
-                 gridData[availableSeats[0].r][availableSeats[0].c].student = stu;
-                 return true;
-            }
+            // 這一區已經沒有「非歷史座位」可選了：回傳 false，讓外層改試志願2，
+            // 或交給全教室的 remaining fallback 去找別區的空位，
+            // 而不是在這裡就強制塞進歷史座位（避免明明別區還有空位卻放棄嘗試）
             return false;
         }
 
