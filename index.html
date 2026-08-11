@@ -413,7 +413,11 @@
             if (b === stuId) conflictIds.push(a);
         });
         if (conflictIds.length === 0) return false;
-        const neighbors = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+        // 九宮格：上下左右 + 四個對角，總共檢查週圍 8 個方向
+        const neighbors = [
+            [r-1,c],[r+1,c],[r,c-1],[r,c+1],
+            [r-1,c-1],[r-1,c+1],[r+1,c-1],[r+1,c+1]
+        ];
         for (const [nr, nc] of neighbors) {
             if (nr < 0 || nr >= numRows || nc < 0 || nc >= numCols) continue;
             const neighborStu = gridData[nr][nc].student;
