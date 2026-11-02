@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>終極完美版 - 學生座位表產生器 (進度同步 & 互換座位)</title>
+    <title>學生座位表產生器</title>
     <style>
         body { font-family: '微軟正黑體', sans-serif; background: #f4f5f7; margin: 20px; color: #333; }
         .container { display: flex; gap: 20px; max-width: 1450px; margin: auto; align-items: flex-start; }
@@ -63,6 +63,11 @@
         .class-box { background: #e0f2f1; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #26A69A; }
         .class-box label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; color: #00695C; }
 
+        .help-box { background: #fffde7; border: 1px solid #fbc02d; border-radius: 4px; padding: 8px 10px; margin-bottom: 15px; }
+        .help-box summary { font-weight: bold; cursor: pointer; color: #f57f17; font-size: 14px; }
+        .help-box h4 { margin: 10px 0 2px 0; font-size: 13px; color: #555; }
+        .help-box ol, .help-box ul { margin: 4px 0 0 0; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+
         /* iPad 等窄螢幕：側欄跟主畫面改成上下堆疊，避免被壓得太窄 */
         @media (max-width: 900px) {
             .container { flex-direction: column; }
@@ -76,6 +81,26 @@
 <div class="container">
     <div class="panel sidebar">
         <div class="save-status" id="saveStatus">✔️ 資料已自動暫存</div>
+
+        <details class="help-box">
+            <summary>📖 使用說明（第一次使用請先看）</summary>
+            <h4>基本流程</h4>
+            <ol>
+                <li>在「1. 標題與網格」輸入標題、列數（直）、排數（橫），按「產生 / 重置網格」。</li>
+                <li>在「3. 學生名單」輸入「座號 姓名 志願1 志願2」，一人一行（也可匯入 CSV）。志願填前／中／後，可不填。</li>
+                <li>需要時再設定「2. 老師強制設定」（指定某座號必須坐前／中／後）、「4. 座位衝突」（兩人盡量不在九宮格內）、「5. 幹部名單」。</li>
+                <li>按「🎲 自動排座」，不滿意可以一直重骰；再用「7. 點擊網格互動模式」微調（互換、手動指定、移除、黑格子、改區域）。</li>
+                <li>滿意後按「🔒 確認並存入歷史」，下次排座會避開這次的座位。</li>
+                <li>按「⬇️ 匯出 Excel」或「🖨️ 預覽列印 / 存PDF」輸出成果。</li>
+            </ol>
+            <h4>資料存在哪裡？</h4>
+            <ul>
+                <li>資料只存在<b>這台裝置的這個瀏覽器</b>，不會上傳到網路，其他老師也看不到。</li>
+                <li>換電腦／換瀏覽器、使用無痕模式、清除瀏覽器資料，資料都不會跟著走，甚至會消失。</li>
+                <li>建議定期備份：「10. 備份檔」下載檔案，或用「8. 進度代碼」在兩台裝置間搬資料。</li>
+                <li>備份檔裡有學生姓名，請妥善保管，不要放到公開的地方。</li>
+            </ul>
+        </details>
         
         <h3>1. 標題與網格</h3>
         <textarea id="classTitle" rows="1" placeholder="標題 (如：112學年度 座位表)"></textarea>
@@ -147,6 +172,16 @@
                 <button onclick="loadClassProfile()" style="background:#26A69A; margin:0;">📂 讀取</button>
                 <button onclick="deleteClassProfile()" style="background:#EF5350; margin:0;">🗑️ 刪除</button>
             </div>
+        </div>
+
+        <div class="class-box">
+            <label>💾 10. 備份檔 (防止瀏覽器資料被清掉)</label>
+            <input type="file" id="backupImportInput" accept=".json,application/json" style="display:none;" onchange="handleBackupImport(event)">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="downloadBackup()" style="background:#00897B; margin:0;">⬇️ 下載備份檔</button>
+                <button onclick="document.getElementById('backupImportInput').click()" style="background:#26A69A; margin:0;">⬆️ 上傳備份檔</button>
+            </div>
+            <p style="font-size: 11px; margin: 5px 0 0 0; color: #666;">備份內容包含目前畫面、所有班級存檔與歷史座位。檔案內有學生姓名，請妥善保管。</p>
         </div>
 
         <button class="btn-history" onclick="saveHistory()">🔒 滿意了！確認並存入歷史 (下次避開)</button>
@@ -313,6 +348,76 @@
         delete profiles[name];
         localStorage.setItem(CLASS_PROFILES_KEY, JSON.stringify(profiles));
         refreshClassProfileDropdown();
+    }
+
+    // --- 💾 備份檔 (下載 / 上傳) ---
+    function downloadBackup() {
+        const profiles = getClassProfiles();
+        if (gridData.length === 0 && Object.keys(profiles).length === 0) {
+            return alert("目前沒有可備份的資料！");
+        }
+        const backup = {
+            app: 'seating-app',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            current: gridData.length > 0 ? currentStateSnapshot() : null,
+            profiles: profiles,
+            history: previousHistory
+        };
+        const d = new Date();
+        const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+        const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `座位表備份_${stamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function handleBackupImport(event) {
+        const file = event.target.files[0];
+        event.target.value = ''; // 清空，允許重複選同一個檔案
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            let backup;
+            try {
+                backup = JSON.parse(String(e.target.result));
+            } catch (err) {
+                return alert("❌ 這個檔案讀不出來，請確認是從本程式下載的備份檔！");
+            }
+            if (!backup || backup.app !== 'seating-app') {
+                return alert("❌ 這不是座位表的備份檔，已取消匯入。");
+            }
+            const profileCount = backup.profiles ? Object.keys(backup.profiles).length : 0;
+            const msg = `即將匯入備份（${backup.exportedAt ? backup.exportedAt.slice(0, 10) : '日期不明'}）：\n` +
+                `・目前畫面：${backup.current ? '有' : '無'}\n・班級存檔：${profileCount} 個\n\n` +
+                `這會覆蓋目前畫面上的內容，同名的班級存檔也會被取代，確定要匯入嗎？`;
+            if (!confirm(msg)) return;
+            try {
+                if (backup.profiles) {
+                    const merged = Object.assign({}, getClassProfiles(), backup.profiles);
+                    localStorage.setItem(CLASS_PROFILES_KEY, JSON.stringify(merged));
+                    refreshClassProfileDropdown();
+                }
+                if (backup.history) {
+                    previousHistory = backup.history;
+                    localStorage.setItem('seatingHistory_V6', JSON.stringify(previousHistory));
+                }
+                if (backup.current) {
+                    applyLoadedData(backup.current);
+                    saveData();
+                }
+                alert("✅ 備份已匯入！");
+            } catch (err) {
+                alert("❌ 匯入過程發生錯誤，備份檔內容可能不完整。");
+            }
+        };
+        reader.onerror = () => alert("❌ 讀取檔案失敗！");
+        reader.readAsText(file, 'UTF-8');
     }
 
     // --- 📁 CSV / 文字檔匯入學生名單 ---
